@@ -1,14 +1,9 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from app.model import MLModel
-from app.utils import fetch_image_from_url, logger
+from app.utils import logger, save_uploaded_audio
 from app.config import Config
 
-app = FastAPI(title="ML Image-to-Text Service")
-
-# Модель для валидации входных данных
-class ImageRequest(BaseModel):
-    image_url: str
+app = FastAPI(title="ML Audio-to-Text Service")
 
 # Инициализация модели
 try:
@@ -18,17 +13,27 @@ except Exception as e:
     raise e
 
 @app.post("/predict/", response_model=dict)
-async def predict(request: ImageRequest):
-    """Эндпоинт для предсказания текста по URL изображения."""
-    logger.info(f"Получен запрос на предсказание, URL: {request.image_url}")
+async def predict(audio_file: UploadFile = File(...)):
+    """Эндпоинт для предсказания текста из загруженного аудиофайла."""
+    logger.info(f"Получен запрос на предсказание, файл: {audio_file.filename}")
     
-    # Загружаем изображение по URL
-    image = fetch_image_from_url(request.image_url)
+    # Сохраняем загруженный файл во временный файл
+    try:
+        audio_path = await save_uploaded_audio(audio_file)
+    except HTTPException as e:
+        logger.error(f"Ошибка обработки файла: {str(e)}")
+        raise e
     
     # Получаем предсказание
-    text = ml_model.predict(image)
-    
-    return {"text": text}
+    try:
+        text = ml_model.predict(audio_path)
+        return {"text": text}
+    finally:
+        # Удаляем временный файл
+        import os
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
+            logger.info(f"Временный файл удален: {audio_path}")
 
 @app.get("/health")
 async def health_check():

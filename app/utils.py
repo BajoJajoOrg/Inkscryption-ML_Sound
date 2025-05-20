@@ -1,9 +1,7 @@
 import logging
 import os
-import requests
-from PIL import Image
-from io import BytesIO
-from fastapi import HTTPException
+import tempfile
+from fastapi import HTTPException, UploadFile
 from app.config import Config
 
 # Настройка логирования
@@ -20,17 +18,32 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def fetch_image_from_url(image_url: str) -> Image.Image:
-    """Загрузка изображения по URL."""
+async def save_uploaded_audio(audio_file: UploadFile) -> str:
+    """Сохранение загруженного аудиофайла во временный файл."""
     try:
-        response = requests.get(image_url, timeout=10)
-        response.raise_for_status()
-        image = Image.open(BytesIO(response.content)).convert("RGB")
-        logger.info(f"Изображение успешно загружено по URL: {image_url}")
-        return image
-    except requests.RequestException as e:
-        logger.error(f"Ошибка загрузки изображения по URL {image_url}: {str(e)}")
-        raise HTTPException(status_code=400, detail="Не удалось загрузить изображение")
+        # Проверка Content-Type
+        content_type = audio_file.content_type
+        if content_type not in ['audio/wav', 'audio/mpeg', 'audio/mp4']:
+            raise HTTPException(400, "Поддерживаются только WAV, MP3 или M4A файлы")
+        
+        # Проверка размера файла (например, до 50 MB)
+        max_size = 50 * 1024 * 1024  # 50 MB
+        content = await audio_file.read()
+        if len(content) > max_size:
+            raise HTTPException(400, "Файл слишком большой, максимум 50 MB")
+        
+        # Проверка расширения файла
+        filename = audio_file.filename.lower()
+        if not filename.endswith(('.wav', '.mp3', '.m4a')):
+            raise HTTPException(400, "Недопустимое расширение файла")
+        
+        # Сохранение во временный файл
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_file:
+            temp_file.write(content)
+            temp_file_path = temp_file.name
+        
+        logger.info(f"Аудиофайл сохранен как: {temp_file_path}")
+        return temp_file_path
     except Exception as e:
-        logger.error(f"Ошибка обработки изображения: {str(e)}")
-        raise HTTPException(status_code=400, detail="Некорректное изображение")
+        logger.error(f"Ошибка обработки аудиофайла: {str(e)}")
+        raise HTTPException(status_code=400, detail="Ошибка при обработке аудиофайла")
