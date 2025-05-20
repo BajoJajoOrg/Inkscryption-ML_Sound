@@ -22,9 +22,9 @@ async def save_uploaded_audio(audio_file: UploadFile) -> str:
     """Сохранение загруженного аудиофайла во временный файл."""
     try:
         # Проверка Content-Type
-        content_type = audio_file.content_type
-        if content_type not in ['audio/wav', 'audio/mpeg', 'audio/mp4']:
-            raise HTTPException(400, "Поддерживаются только WAV, MP3 или M4A файлы")
+        # content_type = audio_file.content_type
+        # if content_type not in ['audio/wav', 'audio/mpeg', 'audio/mp4']:
+        #     raise HTTPException(400, "Поддерживаются только WAV, MP3 или M4A файлы")
         
         # Проверка размера файла (например, до 50 MB)
         max_size = 50 * 1024 * 1024  # 50 MB
